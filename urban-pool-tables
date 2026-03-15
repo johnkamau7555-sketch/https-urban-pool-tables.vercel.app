@@ -1,0 +1,376 @@
+urban-pool-tables
+│
+├── server.js
+├── package.json
+│
+├── public
+│   ├── index.html
+│   ├── shop.html
+│   ├── cart.html
+│   ├── login.html
+│   ├── register.html
+│   ├── style.css
+│   └── app.js
+│
+└── admin
+    ├── admin.html
+    └── admin.js
+    {
+  "name": "urban-pool-tables",
+  "version": "1.0.0",
+  "description": "Luxury Pool Tables Store",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "cors": "^2.8.5",
+    "bcrypt": "^5.1.0",
+    "jsonwebtoken": "^9.0.0",
+    "nodemailer": "^6.9.3",
+    "stripe": "^14.0.0"
+  }
+const express = require("express")
+const cors = require("cors")
+const bcrypt = require("bcrypt")
+const jwt = require("jsonwebtoken")
+const nodemailer = require("nodemailer")
+
+const app = express()
+
+app.use(cors())
+app.use(express.json())
+app.use(express.static("public"))
+
+let users = []
+let products = []
+let orders = []
+let otps = {}
+
+function generateOTP(){
+return Math.floor(100000 + Math.random() * 900000)
+}
+
+const transporter = nodemailer.createTransport({
+service:"gmail",
+auth:{
+user:"johnkamau755@gmail.com",
+pass:"APP_PASSWORD"
+}
+})
+
+app.post("/register", async(req,res)=>{
+
+const {email,password}=req.body
+
+const hash = await bcrypt.hash(password,10)
+
+const otp = generateOTP()
+
+otps[email]=otp
+
+await transporter.sendMail({
+from:"Urban Pool Tables",
+to:email,
+subject:"Verify your account",
+text:`Your OTP is ${otp}`
+})
+
+users.push({
+email,
+password:hash,
+verified:false
+})
+
+res.json({message:"OTP sent"})
+})
+
+app.post("/verify",(req,res)=>{
+
+const {email,otp}=req.body
+
+if(otps[email]==otp){
+
+let user=users.find(u=>u.email===email)
+
+user.verified=true
+
+res.json({message:"Account verified"})
+
+}else{
+
+res.json({message:"Invalid OTP"})
+
+}
+
+})
+
+app.post("/login", async(req,res)=>{
+
+const {email,password}=req.body
+
+const user=users.find(u=>u.email===email)
+
+if(!user) return res.json({message:"User not found"})
+
+const match = await bcrypt.compare(password,user.password)
+
+if(!match) return res.json({message:"Wrong password"})
+
+const token = jwt.sign({email},"SECRET")
+
+res.json({token})
+
+})
+
+app.get("/products",(req,res)=>{
+res.json(products)
+})
+
+app.post("/products",(req,res)=>{
+
+const {name,price,image}=req.body
+
+products.push({name,price,image})
+
+res.json({message:"Product added"})
+})
+
+app.listen(3000,()=>{
+
+console.log("Urban Pool Tables Server Running")
+
+})<!DOCTYPE html>
+<html>
+
+<head>
+
+<title>Urban Pool Tables</title>
+
+<link rel="stylesheet" href="style.css">
+
+</head>
+
+<body>
+
+<header>
+
+<h1>Urban Pool Tables</h1>
+
+<nav>
+
+<a href="shop.html">Shop</a>
+<a href="login.html">Login</a>
+
+</nav>
+
+</header>
+
+<section class="hero">
+
+<h2>Luxury Pool Tables</h2>
+
+<p>Premium Billiard Tables</p>
+
+</section>
+
+</body>
+
+</html><!DOCTYPE html>
+<html>
+
+<head>
+
+<link rel="stylesheet" href="style.css">
+
+</head>
+
+<body>
+
+<h2>Shop Pool Tables</h2>
+
+<div id="products"></div>
+
+<script src="app.js"></script>
+
+</body>
+
+  </html><!DOCTYPE html>
+<html>
+
+<body>
+
+<h2>Your Cart</h2>
+
+<div id="cart"></div>
+
+<script src="app.js"></script>
+
+</body>
+
+</html><!DOCTYPE html>
+<html>
+
+<body>
+
+<h2>Login</h2>
+
+<input id="email" placeholder="email">
+
+<input id="password" type="password">
+
+<button onclick="login()">Login</button>
+
+<script src="app.js"></script>
+
+</body>
+
+  </html><!DOCTYPE html>
+<html>
+
+<body>
+
+<h2>Create Account</h2>
+
+<input id="email" placeholder="email">
+
+<input id="password" type="password">
+
+<button onclick="register()">Register</button>
+
+<script src="app.js"></script>
+
+</body>
+
+  </html>async function register(){
+
+const email=document.getElementById("email").value
+const password=document.getElementById("password").value
+
+await fetch("/register",{
+
+method:"POST",
+
+headers:{
+"Content-Type":"application/json"
+},
+
+body:JSON.stringify({email,password})
+
+})
+
+alert("OTP sent to email")
+
+}
+
+async function login(){
+
+const email=document.getElementById("email").value
+const password=document.getElementById("password").value
+
+const res = await fetch("/login",{
+
+method:"POST",
+
+headers:{
+"Content-Type":"application/json"
+},
+
+body:JSON.stringify({email,password})
+
+})
+
+const data = await res.json()
+
+alert(data.message || "Logged in")
+
+}
+
+let cart = JSON.parse(localStorage.getItem("cart")) || []
+
+function addToCart(product){
+
+cart.push(product)
+
+localStorage.setItem("cart",JSON.stringify(cart))
+
+alert("Added to cart")
+
+}<!DOCTYPE html>
+<html>
+
+<body>
+
+<h2>Admin Panel</h2>
+
+<input id="name" placeholder="Product Name">
+
+<input id="price" placeholder="Price">
+
+<input id="image" placeholder="Image URL">
+
+<button onclick="addProduct()">Add Product</button>
+
+<script src="admin.js"></script>
+
+</body>
+
+</html>async function addProduct(){
+
+const name=document.getElementById("name").value
+const price=document.getElementById("price").value
+const image=document.getElementById("image").value
+
+await fetch("/products",{
+
+method:"POST",
+
+headers:{
+"Content-Type":"application/json"
+},
+
+body:JSON.stringify({name,price,image})
+
+})
+
+alert("Product Added")
+
+}body{
+
+background:black;
+color:white;
+font-family:Arial;
+
+}
+
+header{
+
+display:flex;
+justify-content:space-between;
+padding:20px;
+border-bottom:2px solid gold;
+
+}
+
+a{
+
+color:gold;
+text-decoration:none;
+
+}
+
+.hero{
+
+text-align:center;
+padding:120px;
+
+}
+
+button{
+
+background:gold;
+border:none;
+padding:10px;
+
+}
